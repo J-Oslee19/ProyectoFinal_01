@@ -1,15 +1,18 @@
-﻿using Microsoft.Office.Interop.PowerPoint;
+﻿using Microsoft.Office.Core;
+using Microsoft.Office.Interop.PowerPoint;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
+using System.Drawing;
 using System.IO;
+//using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Word = Microsoft.Office.Interop.Word;
-using Microsoft.Office.Core;
+
 
 
 namespace ProyectoFinal_01
@@ -20,12 +23,24 @@ namespace ProyectoFinal_01
         TextBox txtRespuesta;
         Label lblEstado;
         string RutaDestino = "C:\\Users\\CompuFire\\Documents\\Documentos generador por IA";
+        string RutaPlantilla = @"C:\Plantillas\PlantillaConsulta.docx";
+        // Campos de clase para los controles
+        private TextBox txtTema;
+        private TextBox txtResultado;
 
         public Form1()
         {
             InitializeComponent();
             CrearInterfaz();
+
+
         }
+
+        private void btnGuardarPlantilla_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show("Aquí se ejecutará el guardado en plantilla Word.");
+        }
+
 
         private void CrearInterfaz()
         {
@@ -52,6 +67,14 @@ namespace ProyectoFinal_01
                 ScrollBars = ScrollBars.Vertical
             };
             this.Controls.Add(txtPrompt);
+            Button btnPlantilla = new Button
+            {
+                Text = "Guardar Plantilla Word",
+                Location = new System.Drawing.Point(250, 380),
+                Width = 180
+            };
+            btnPlantilla.Click += btnGenerarPlantilla_Click; 
+            this.Controls.Add(btnPlantilla);
 
             Button btnConsultar = new Button
             {
@@ -67,7 +90,7 @@ namespace ProyectoFinal_01
 
                 if (!string.IsNullOrWhiteSpace(prompt))
                 {
-                    await GuardarDBAsync(); // Eliminado el intento de asignar el resultado a una variable
+                    await GuardarDBAsync(); 
                 }
                 else
                 {
@@ -101,7 +124,7 @@ namespace ProyectoFinal_01
             {
                 Text = "Guardar en Word",
                 Top = 380, // Ajusta la posición según tu diseño
-                Left = 260,
+                Left = 50,
                 Width = 150
             };
             btnGenerarWord.Click += BtnGenerarWord_Click;
@@ -111,8 +134,8 @@ namespace ProyectoFinal_01
             {
                 Text = "Guardar en Presentacion PowerPoint",
                 Top = 380, // Ajusta la posición según tu diseño
-                Left = 450,
-                Width = 200
+                Left = 480,
+                Width = 190
             };
             btnGenerarPTT.Click += btnGenerarPresentacion_Click;
             this.Controls.Add(btnGenerarPTT);
@@ -135,7 +158,7 @@ namespace ProyectoFinal_01
         {
             try
             {
-                string apiKey = "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"; // Reemplázala con tu clave válida
+                string apiKey = "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"; // Clave API
                 string endpoint = "https://api.groq.com/openai/v1/chat/completions";
 
                 using (var client = new HttpClient())
@@ -145,7 +168,7 @@ namespace ProyectoFinal_01
 
                     var requestBody = new
                     {
-                        model = "llama3-70b-8192", // NUEVO modelo soportado
+                        model = "llama3-70b-8192", 
                         messages = new[]
                         {
                     new Dictionary<string, string>
@@ -198,6 +221,66 @@ namespace ProyectoFinal_01
             }
         }
 
+
+        private void GenerarDocumentoDesdePlantilla(string titulo, string contenido)
+        {
+            try
+            {
+                // Ruta de la plantilla
+                string rutaPlantilla = @"C:\\Users\\CompuFire\\source\\repos\\ProyectoFinal_01\\Docs\\PlantillaConsulta.docx";
+
+                // Ruta de salida
+                string rutaSalida = $"C:\\Users\\CompuFire\\source\\repos\\ProyectoFinal_01\\Docs\\Consulta_{DateTime.Now:yyyyMMdd_HHmmss}.docx";
+
+                // Asegura que el directorio exista
+                Directory.CreateDirectory(Path.GetDirectoryName(rutaSalida));
+
+                // Inicia Word
+                Word.Application wordApp = new Word.Application();
+                wordApp.Visible = false; // No mostrar Word
+
+                // Abre la plantilla
+                Word.Document doc = wordApp.Documents.Open(rutaPlantilla);
+
+                // Reemplaza los marcadores
+                if (doc.Bookmarks.Exists("TituloConsulta"))
+                {
+                    doc.Bookmarks["TituloConsulta"].Range.Text = titulo;
+                }
+
+                if (doc.Bookmarks.Exists("FechaConsulta"))
+                {
+                    doc.Bookmarks["FechaConsulta"].Range.Text = DateTime.Now.ToString("dd/MM/yyyy");
+                }
+
+                if (doc.Bookmarks.Exists("ContenidoConsulta"))
+                {
+                    doc.Bookmarks["ContenidoConsulta"].Range.Text = contenido;
+                }
+
+                // Guarda el documento como nuevo
+                doc.SaveAs2(rutaSalida);
+                doc.Close();
+                wordApp.Quit();
+
+                MessageBox.Show("✅ Documento generado correctamente:\n" + rutaSalida, "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("❌ Error al generar el documento:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnGenerarPlantilla_Click(object sender, EventArgs e)
+        {
+            
+
+            string titulo = txtPrompt.Text;
+            string contenido = txtRespuesta.Text;
+
+            GenerarDocumentoDesdePlantilla(titulo, contenido);
+        }
+
         public void GuardarDocumentoWord(string titulo, string contenido, string piePagina)
         {
             try
@@ -243,15 +326,10 @@ namespace ProyectoFinal_01
                     footerParagraph.Format.Alignment = Word.WdParagraphAlignment.wdAlignParagraphRight;
                     footerParagraph.Range.InsertParagraphAfter();
                 }
-                // Generar nombre único con fecha y hora
-                //string nombreArchivo = $"trabajo_{DateTime.Now:yyyyMMdd_HHmmss}.docx";
-                //// Guardar el documento en Mis Documentos como "trabajo.docx"
-                //string filePath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), nombreArchivo);
-
+               
                 string nombreArchivo = $"trabajo_{DateTime.Now:yyyyMMdd_HHmmss}.docx";
 
-                // Ruta completa: Mis Documentos\InvestigacionesIA\mi_investigacion.docx
-               // string rutaCarpeta = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), nombreCarpeta);
+       
 
                 // Crear la carpeta si no existe
                 if (!Directory.Exists(RutaDestino))
@@ -285,35 +363,67 @@ namespace ProyectoFinal_01
             GuardarDocumentoWord(titulo, contenido, piePagina);
         }
 
-
         public void GenerarPresentacionPowerPoint(string titulo, string contenido, string piePagina)
         {
             try
             {
-                // Cambiar la referencia explícita para evitar ambigüedad
-                Microsoft.Office.Interop.PowerPoint.Application pptApp = new Microsoft.Office.Interop.PowerPoint.Application();
-                // Crear instancia de PowerPoint
-                //Application pptApp = new Application();
-                Presentations presentations = pptApp.Presentations;
-                Presentation presentation = presentations.Add(MsoTriState.msoTrue);
-                
-                Slides slides = presentation.Slides;
-                Slide slide1 = slides.Add(1, PpSlideLayout.ppLayoutTitle);
+                var pptApp = new Microsoft.Office.Interop.PowerPoint.Application();
+                var presentations = pptApp.Presentations;
+                var presentation = presentations.Add(MsoTriState.msoFalse); // No mostrar PowerPoint
+                var slides = presentation.Slides;
+
+                // Diapositiva 1: Título
+                var slide1 = slides.Add(1, PpSlideLayout.ppLayoutTitle);
                 slide1.Shapes[1].TextFrame.TextRange.Text = titulo;
-                slide1.Shapes[2].TextFrame.TextRange.Text = "Investigación generada por IA";
+                slide1.Shapes[1].TextFrame.TextRange.Font.Name = "Calibri";
+                slide1.Shapes[1].TextFrame.TextRange.Font.Size = 36;
+                slide1.Shapes[2].TextFrame.TextRange.Text = "Presentación generada automáticamente";
+                slide1.Shapes[2].TextFrame.TextRange.Font.Name = "Calibri";
+                slide1.Shapes[2].TextFrame.TextRange.Font.Size = 20;
+                slide1.FollowMasterBackground = MsoTriState.msoFalse;
+                slide1.Background.Fill.ForeColor.RGB = ColorTranslator.ToOle(Color.LightSteelBlue);
 
-                // Diapositiva 2: Contenido
-                Slide slide2 = slides.Add(2, PpSlideLayout.ppLayoutText);
-                slide2.Shapes[1].TextFrame.TextRange.Text = "Contenido Principal";
-                slide2.Shapes[2].TextFrame.TextRange.Text = contenido;
+                // Dividir contenido en partes
+                List<string> partesContenido = DividirContenidoEnPartes(contenido, 800);
+                int slideIndex = 2;
 
-              
-                
+                foreach (var parte in partesContenido)
+                {
+                    var slide = slides.Add(slideIndex++, PpSlideLayout.ppLayoutText);
+                    slide.Shapes[1].TextFrame.TextRange.Text = "Contenido";
+                    slide.Shapes[1].TextFrame.TextRange.Font.Name = "Calibri";
+                    slide.Shapes[1].TextFrame.TextRange.Font.Size = 28;
+
+                    slide.Shapes[2].TextFrame.TextRange.Text = parte;
+                    slide.Shapes[2].TextFrame.TextRange.Font.Name = "Calibri";
+                    slide.Shapes[2].TextFrame.TextRange.Font.Size = 20;
+
+                    slide.FollowMasterBackground = MsoTriState.msoFalse;
+                    slide.Background.Fill.ForeColor.RGB = ColorTranslator.ToOle(Color.WhiteSmoke);
+                }
+
+                // Diapositiva final de cierre
+                var slideFinal = slides.Add(slideIndex, PpSlideLayout.ppLayoutTitleOnly);
+                slideFinal.Shapes[1].TextFrame.TextRange.Text = "¡Gracias por su atención!";
+                slideFinal.Shapes[1].TextFrame.TextRange.Font.Name = "Calibri";
+                slideFinal.Shapes[1].TextFrame.TextRange.Font.Size = 32;
+                slideFinal.Shapes[1].TextFrame.TextRange.Font.Bold = MsoTriState.msoTrue;
+                slideFinal.FollowMasterBackground = MsoTriState.msoFalse;
+                slideFinal.Background.Fill.ForeColor.RGB = ColorTranslator.ToOle(Color.LightBlue);
+
+                // Agregar pie de página
+                foreach (Slide slide in slides)
+                {
+                    slide.HeadersFooters.Footer.Visible = MsoTriState.msoTrue;
+                    slide.HeadersFooters.Footer.Text = piePagina;
+                }
+
+                // Guardar la presentación
                 string nombreArchivo = $"Presentacion_{DateTime.Now:yyyyMMdd_HHmmss}.pptx";
                 string rutaCompleta = Path.Combine(RutaDestino, nombreArchivo);
-
                 presentation.SaveAs(rutaCompleta);
-               // presentation.Close();
+
+                presentation.Close();
                 pptApp.Quit();
 
                 MessageBox.Show($"✅ Presentación guardada exitosamente en:\n{rutaCompleta}", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -323,6 +433,43 @@ namespace ProyectoFinal_01
                 MessageBox.Show($"❌ Error al generar presentación: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+
+        private List<string> DividirContenidoEnPartes(string texto, int caracteresMaximos)
+        {
+            List<string> partes = new List<string>();
+            int inicio = 0;
+
+            while (inicio < texto.Length)
+            {
+                int longitudRestante = texto.Length - inicio;
+                int longitud = Math.Min(caracteresMaximos, longitudRestante);
+
+                // Corregimos el índice para LastIndexOf
+                int indiceBusqueda = inicio + longitud - 1;
+                if (indiceBusqueda >= texto.Length)
+                {
+                    indiceBusqueda = texto.Length - 1;
+                }
+
+                int fin = texto.LastIndexOf(' ', indiceBusqueda);
+                if (fin == -1 || fin <= inicio)
+                {
+                    fin = inicio + longitud;
+                }
+
+                if (fin > texto.Length)
+                {
+                    fin = texto.Length;
+                }
+
+                string parte = texto.Substring(inicio, fin - inicio).Trim();
+                partes.Add(parte);
+                inicio = fin;
+            }
+
+            return partes;
+        }
+
 
         private void btnGenerarPresentacion_Click(object sender, EventArgs e)
         {
@@ -386,6 +533,10 @@ namespace ProyectoFinal_01
                 MessageBox.Show("Por favor, escribe un tema o pregunta para consultar a la IA.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
-        
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+          
+        }
     }
 }
